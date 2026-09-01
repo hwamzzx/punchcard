@@ -577,9 +577,9 @@ function flushSave(){
       /* 다른 팀원이 먼저 저장했다. 서버 것을 바탕으로 삼되,
          내가 마지막 동기화 이후 바꾼 부분만 그 위에 다시 얹는다.
          통째로 갈아끼우면 방금 누른 출퇴근이 사라진다. */
-      var mine = S;
+      var mine = S, myBase = baseState;   // adopt 가 baseState 를 덮기 전에 붙잡아 둔다
       adopt(res.state, res.version);
-      mergeMine(mine);
+      mergeMine(mine, myBase);
       render();
       flush2();
       return;
@@ -603,9 +603,11 @@ var baseState = null;
 function copy(o){ return JSON.parse(JSON.stringify(o)); }
 function same(a, b){ return JSON.stringify(a) === JSON.stringify(b); }
 
-/** 서버 상태(현재 S) 위에, mine 이 baseState 대비 바꾼 부분만 얹는다. */
-function mergeMine(mine){
-  var base = baseState || {members:[], days:{}, off:{}, settings:{}};
+/** 서버 상태(현재 S) 위에, mine 이 base 대비 바꾼 부분만 얹는다.
+ *  base 는 "내가 서버와 마지막으로 맞췄던 시점의 내 상태"여야 한다.
+ *  여기에 서버의 최신 상태를 넘기면, 남이 방금 추가한 것을 내가 지운 것으로 오판해 지워버린다. */
+function mergeMine(mine, base){
+  base = base || {members:[], days:{}, off:{}, settings:{}};
 
   // 팀원: 내가 새로 추가한 사람만 더한다. 서버에 있는 사람은 건드리지 않는다.
   (mine.members||[]).forEach(function(m){
@@ -652,9 +654,9 @@ function poll(){
   Store.load().then(function(res){
     if(!res || typeof res.version !== "number") return;
     if(res.version === VERSION) return;      // 바뀐 게 없다
-    var mine = S;
+    var mine = S, myBase = baseState;      // adopt 가 baseState 를 덮기 전에 붙잡아 둔다
     adopt(res.state, res.version);
-    mergeMine(mine);                         // 아직 저장 못 한 내 변경은 지키고
+    mergeMine(mine, myBase);                 // 아직 저장 못 한 내 변경은 지키고
     rollMidnight();
     render();
     if(!same(S, baseState)) save();          // 남아 있던 내 변경을 마저 저장한다
