@@ -1,0 +1,1159 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>펀치카드</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%F0%9F%95%98%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@500;700;900&family=JetBrains+Mono:wght@400;500;700&family=Noto+Sans+KR:wght@400;500;700&display=swap">
+<style>
+:root{
+  --bg:#F2F3F0; --panel:#FFFFFF; --panel2:#EBEDE7; --line:#DCE0D6; --line2:#C6CCBE;
+  --ink:#191E17; --ink2:#5C6359; --ink3:#8C9386;
+  --accent:#2E6B4A; --accent-ink:#1E4A33; --accent-soft:#DDEBE2;
+  --warn:#8E5C0E; --warn-soft:#F5E8D0; --danger:#9C3527; --danger-soft:#F4DDD8;
+  --shadow:0 1px 2px rgba(25,30,23,.05), 0 10px 28px -16px rgba(25,30,23,.30);
+  --on-accent:#FFFFFF;
+  --r:10px;
+}
+:root:not([data-theme="light"]){ color-scheme:light dark; }
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#131611; --panel:#1B1F19; --panel2:#232821; --line:#313729; --line2:#414839;
+    --ink:#E7EAE2; --ink2:#A4AB9B; --ink3:#79806E;
+    --accent:#6FC090; --accent-ink:#9BD8B4; --accent-soft:#1E3226;
+    --warn:#D9A441; --warn-soft:#332A16; --danger:#E4796A; --danger-soft:#3A211C;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -16px rgba(0,0,0,.7);
+    --on-accent:#0F1A13;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#131611; --panel:#1B1F19; --panel2:#232821; --line:#313729; --line2:#414839;
+  --ink:#E7EAE2; --ink2:#A4AB9B; --ink3:#79806E;
+  --accent:#6FC090; --accent-ink:#9BD8B4; --accent-soft:#1E3226;
+  --warn:#D9A441; --warn-soft:#332A16; --danger:#E4796A; --danger-soft:#3A211C;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -16px rgba(0,0,0,.7);
+  --on-accent:#0F1A13;
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:"Noto Sans KR","Apple SD Gothic Neo",system-ui,sans-serif;
+  font-size:14px; line-height:1.55; -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3{font-family:"Gothic A1","Noto Sans KR",system-ui,sans-serif; margin:0; text-wrap:balance}
+.mono,time,.num{font-family:"JetBrains Mono",ui-monospace,monospace; font-variant-numeric:tabular-nums}
+button,input,select{font:inherit; color:inherit}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px; border-radius:4px}
+
+.wrap{max-width:1180px; margin:0 auto; padding:22px 18px 72px}
+
+/* ---------- header ---------- */
+.top{display:flex; flex-wrap:wrap; gap:14px; align-items:flex-end; justify-content:space-between; margin-bottom:18px}
+.brand{display:flex; align-items:baseline; gap:10px}
+.brand h1{font-size:26px; font-weight:900; letter-spacing:-.02em}
+.brand .sub{color:var(--ink3); font-size:12px; letter-spacing:.08em; text-transform:uppercase}
+.who{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+.label{font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink3); font-weight:700}
+
+.chipbar{display:flex; gap:6px; flex-wrap:wrap; align-items:center}
+.chip{
+  border:1px solid var(--line2); background:var(--panel); color:var(--ink2);
+  border-radius:999px; padding:5px 12px; cursor:pointer; font-size:13px; font-weight:500;
+}
+.chip:hover{border-color:var(--accent); color:var(--ink)}
+.chip[aria-pressed="true"]{background:var(--accent); border-color:var(--accent); color:var(--on-accent); font-weight:700}
+.chip.ghost{border-style:dashed; color:var(--ink3)}
+
+/* ---------- panels ---------- */
+.grid{display:grid; grid-template-columns:360px minmax(0,1fr); gap:16px; align-items:start}
+.grid > *{min-width:0}
+@media (max-width:940px){ .grid{grid-template-columns:minmax(0,1fr)} }
+.card{background:var(--panel); border:1px solid var(--line); border-radius:var(--r); box-shadow:var(--shadow); overflow:hidden}
+.card + .card{margin-top:16px}
+.card h2{font-size:13px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink3); font-weight:700}
+.card-hd{display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:10px; padding:14px 16px; border-bottom:1px solid var(--line)}
+.card-bd{padding:16px}
+
+/* ---------- punch ---------- */
+.clock{display:flex; align-items:baseline; gap:10px; justify-content:space-between}
+.clock .now{font-size:40px; font-weight:700; letter-spacing:-.03em; line-height:1}
+.clock .date{color:var(--ink2); font-size:13px; text-align:right}
+.state{
+  margin-top:14px; padding:12px 14px; border-radius:8px; background:var(--panel2);
+  border:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; gap:10px;
+}
+.state .k{font-size:12px; color:var(--ink2)}
+.state .v{font-size:22px; font-weight:700}
+.punch{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:14px}
+.btn{
+  border:1px solid var(--line2); background:var(--panel); border-radius:8px;
+  padding:13px 10px; cursor:pointer; font-weight:700; font-size:14px; text-align:center;
+  transition:transform .08s ease, background .15s ease, border-color .15s ease;
+}
+.btn:hover:not(:disabled){border-color:var(--accent); background:var(--accent-soft)}
+.btn:active:not(:disabled){transform:translateY(1px)}
+.btn:disabled{opacity:.38; cursor:not-allowed}
+.btn.primary{background:var(--accent); border-color:var(--accent); color:var(--on-accent)}
+.btn.primary:hover:not(:disabled){filter:brightness(1.06); background:var(--accent)}
+.btn.span2{grid-column:span 2}
+.btn.sm{padding:6px 10px; font-size:12.5px; font-weight:500}
+
+/* ---------- meter ---------- */
+.meter{margin-top:4px}
+.meter .bar{height:10px; border-radius:999px; background:var(--panel2); border:1px solid var(--line); overflow:hidden; display:flex}
+.meter .fill{background:var(--accent); height:100%}
+.meter .fill.today{background:var(--accent); opacity:.45}
+.meter .cap{display:flex; justify-content:space-between; margin-top:7px; font-size:12px; color:var(--ink2)}
+.big{font-size:32px; font-weight:700; letter-spacing:-.02em}
+.big small{font-size:15px; color:var(--ink3); font-weight:500; margin-left:2px}
+
+/* ---------- tags ---------- */
+.tag{display:inline-flex; align-items:center; gap:5px; border-radius:999px; padding:2px 9px; font-size:11.5px; font-weight:700; white-space:nowrap}
+.tag.ok{background:var(--accent-soft); color:var(--accent-ink)}
+.tag.warn{background:var(--warn-soft); color:var(--warn)}
+.tag.bad{background:var(--danger-soft); color:var(--danger)}
+.tag.mute{background:var(--panel2); color:var(--ink3)}
+.warnlist{margin:12px 0 0; padding:0; list-style:none; display:flex; flex-direction:column; gap:6px}
+.warnlist li{
+  display:flex; gap:8px; align-items:flex-start; font-size:12.5px; color:var(--warn);
+  background:var(--warn-soft); border-radius:7px; padding:8px 10px; line-height:1.45;
+}
+.warnlist li::before{content:"!"; font-weight:900; font-family:"JetBrains Mono",monospace}
+
+/* ---------- board ---------- */
+.scroller{overflow-x:auto}
+table{border-collapse:collapse; width:100%; min-width:720px}
+th,td{border-bottom:1px solid var(--line); padding:9px 8px; text-align:center; vertical-align:middle}
+thead th{
+  font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink3);
+  font-weight:700; border-bottom:1px solid var(--line2); padding-bottom:8px;
+}
+thead th .dnum{display:block; font-size:11px; color:var(--ink3); font-weight:500}
+th.name,td.name{text-align:left; white-space:nowrap; font-weight:700}
+td.cell{cursor:pointer}
+td.cell:hover{background:var(--panel2)}
+td.today{box-shadow:inset 0 0 0 2px var(--accent-soft)}
+td .hrs{font-family:"JetBrains Mono",monospace; font-variant-numeric:tabular-nums; font-weight:500}
+td.off .hrs{color:var(--ink3)}
+td.total{border-left:1px solid var(--line2); font-weight:700}
+tbody tr.me{background:color-mix(in srgb, var(--accent-soft) 45%, transparent)}
+.dot{display:inline-block; width:6px; height:6px; border-radius:50%; margin-left:5px; vertical-align:middle}
+.dot.live{background:var(--accent); animation:pulse 1.8s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+@media (prefers-reduced-motion:reduce){ .dot.live{animation:none} .btn{transition:none} }
+
+/* ---------- editor ---------- */
+.rows{display:flex; flex-direction:column; gap:10px}
+.row{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
+.row .k{width:74px; flex:none; font-size:12px; color:var(--ink2); font-weight:700}
+input[type="time"],input[type="text"],input[type="number"],select{
+  background:var(--panel2); border:1px solid var(--line2); border-radius:7px; padding:7px 9px;
+  font-family:"JetBrains Mono",ui-monospace,monospace; font-variant-numeric:tabular-nums;
+}
+input[type="text"]{font-family:"Noto Sans KR",sans-serif; min-width:220px; flex:1}
+.hint{color:var(--ink3); font-size:12px}
+.sep{height:1px; background:var(--line); margin:14px 0}
+.empty{color:var(--ink3); text-align:center; padding:26px 12px; font-size:13px}
+.banner{
+  border:1px dashed var(--line2); background:var(--panel2); border-radius:var(--r);
+  padding:12px 14px; font-size:13px; color:var(--ink2); margin-bottom:16px;
+}
+.foot{margin-top:26px; color:var(--ink3); font-size:12px; display:flex; gap:14px; flex-wrap:wrap; justify-content:space-between}
+
+/* ---------- dialog (샌드박스에서 prompt/confirm 을 못 쓰므로 직접 그린다) ---------- */
+.veil{
+  position:fixed; inset:0; background:rgba(10,14,9,.5); backdrop-filter:blur(2px);
+  display:flex; align-items:center; justify-content:center; padding:20px; z-index:50;
+}
+.dialog{
+  background:var(--panel); border:1px solid var(--line2); border-radius:12px; box-shadow:var(--shadow);
+  width:min(420px,100%); padding:20px;
+}
+.dialog h3{font-size:16px; font-weight:700; margin-bottom:8px}
+.dialog p{margin:0 0 16px; color:var(--ink2); font-size:13.5px; white-space:pre-line}
+.dialog .acts{display:flex; gap:8px; justify-content:flex-end}
+.dialog .acts .btn{padding:9px 18px}
+.addform{display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:12px}
+.addform input[type="text"]{min-width:150px}
+.rules{margin:6px 0 0; padding-left:18px}
+.rules li{margin:2px 0}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+/* ====== 설정 ======
+ * apiUrl 을 비워두면 이 브라우저에만 저장됩니다(혼자 쓰기).
+ * 팀과 공유하려면 저장소 주소만 여기 적으세요.
+ *
+ * 팀 암호는 여기에 적지 않습니다. 저장소가 공개라 코드에 적으면 누구나 볼 수 있습니다.
+ * 대신 각자 처음 들어올 때 한 번 입력하고, 그 브라우저에만 보관합니다.
+ * 암호는 팀 단톡방 같은 곳으로 따로 전달하세요.
+ */
+var CONFIG = {
+  apiUrl: ""   // 예: "https://punchcard.내계정.workers.dev"
+};
+
+(function(){
+"use strict";
+
+/* ===== state ===== */
+var S = {v:1, members:[], days:{}, off:{}, settings:{goalMin:3600, coreStart:"13:00", coreEnd:"18:00"}};
+S.members = S.members || []; S.days = S.days || {}; S.off = S.off || {};
+S.settings = Object.assign({goalMin:3600, coreStart:"13:00", coreEnd:"18:00"}, S.settings||{});
+delete S.settings.sundayOff;   // 일·월은 고정 근무일 — 휴무는 화~토 중 하루뿐
+
+var READONLY = false, saving = false;
+var DOW = ["일","월","화","수","목","금","토"];
+
+var ui = {
+  me: null,
+  weekMon: mondayOf(new Date()),
+  sel: null,          // 선택된 날짜 (상세 편집)
+  adding: false,      // 팀원 추가 폼 열림
+  addName: "",
+  showSettings: false,
+  dialog: null        // {title, msg, okLabel, ok:fn}
+};
+
+/** 아티팩트는 샌드박스 iframe 안에서 열리므로 prompt/confirm/alert 가 동작하지 않는다.
+ *  확인이 필요한 동작은 전부 이 대화상자를 거친다. */
+function askConfirm(title, msg, okLabel, onOk){
+  ui.dialog = {title:title, msg:msg, okLabel:okLabel, ok:onOk};
+  render();
+}
+try { ui.me = localStorage.getItem("punchcard.me") || null; } catch(e){}
+
+/* ===== date helpers ===== */
+function pad(n){ return (n<10?"0":"")+n; }
+function ymd(d){ return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
+function parseYmd(s){ var p=s.split("-"); return new Date(+p[0], +p[1]-1, +p[2]); }
+function todayStr(){ return ymd(new Date()); }
+function mondayOf(d){
+  var x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  var w = (x.getDay()+6)%7;           // 월=0 … 일=6
+  x.setDate(x.getDate()-w);
+  return ymd(x);
+}
+function addDays(s, n){ var d=parseYmd(s); d.setDate(d.getDate()+n); return ymd(d); }
+function weekDates(mon){ var a=[]; for(var i=0;i<7;i++) a.push(addDays(mon,i)); return a; }
+function hm(mins){
+  if(mins==null) return "–";
+  var neg = mins<0; mins=Math.abs(Math.round(mins));
+  return (neg?"-":"")+Math.floor(mins/60)+"시간 "+pad(mins%60)+"분";
+}
+function hmShort(mins){
+  if(mins==null||mins<=0) return "0:00";
+  return Math.floor(mins/60)+":"+pad(Math.round(mins)%60);
+}
+function toMin(t){ if(!t) return null; var p=t.split(":"); return (+p[0])*60+(+p[1]); }
+function nowHM(){ var d=new Date(); return pad(d.getHours())+":"+pad(d.getMinutes()); }
+
+/* ===== record helpers ===== */
+function key(mid, date){ return mid+"|"+date; }
+function rec(mid, date){ return S.days[key(mid,date)] || null; }
+function ensure(mid, date){
+  var k = key(mid,date);
+  if(!S.days[k]) S.days[k] = {sessions:[], meals:[], note:""};
+  var r = S.days[k];
+  if(!r.sessions) r.sessions = [];
+  if(!r.meals) r.meals = [];
+  return r;
+}
+/** 예전 기록(하루 1회 출퇴근)을 여러 구간 형식으로 올린다. 한 번만 실행되면 된다. */
+function migrate(){
+  Object.keys(S.days).forEach(function(k){
+    var r = S.days[k];
+    if(r.sessions) { r.meals = r.meals || []; return; }
+    r.sessions = r["in"] ? [{"in": r["in"], out: r.out || null}] : [];
+    delete r["in"]; delete r.out;
+    r.meals = r.meals || [];
+  });
+}
+function openSession(r){
+  if(!r || !r.sessions) return null;
+  for(var i=0;i<r.sessions.length;i++) if(r.sessions[i]["in"] && !r.sessions[i].out) return r.sessions[i];
+  return null;
+}
+function firstIn(r){ return (r && r.sessions && r.sessions.length) ? r.sessions[0]["in"] : null; }
+function lastOut(r){
+  if(!r || !r.sessions || !r.sessions.length) return null;
+  return r.sessions[r.sessions.length-1].out;
+}
+function offDate(mid, mon){ return S.off[key(mid,mon)] ? S.off[key(mid,mon)].date : null; }
+function offNotice(mid, mon){ return S.off[key(mid,mon)] ? S.off[key(mid,mon)].at : null; }
+/** 일·월은 고정 근무일이므로, 휴무는 그 주에 지정한 하루(화~토)뿐이다 */
+function isOff(mid, date){
+  var mon = mondayOf(parseYmd(date));
+  return offDate(mid,mon)===date ? "지정 휴무" : null;
+}
+function span(a, b){
+  var s=toMin(a), e=toMin(b);
+  if(s==null||e==null) return null;
+  return e-s;                       // 자정 넘김은 날짜를 쪼개므로 음수는 잘못된 입력이다
+}
+function mealMinutes(r){
+  var t=0;
+  (r.meals||[]).forEach(function(m){ var v=span(m.s,m.e); if(v!=null && v>0) t+=v; });
+  return t;
+}
+
+/** 하루를 1분 단위로 칠한다. 근무 구간을 1 로 채우고 식사 구간을 0 으로 지운다.
+ *  구간이 여러 개여도, 서로 겹쳐도 결과가 어긋나지 않는다.
+ *  cap: 아직 안 끝난 구간을 어디까지 셀지("HH:MM"). null 이면 열린 구간은 세지 않는다. */
+function dayMask(r, cap){
+  var mask = new Uint8Array(1440), capM = cap!=null ? toMin(cap) : null, i;
+  if(!r) return mask;
+  (r.sessions||[]).forEach(function(s){
+    var a = toMin(s["in"]), b = s.out!=null ? toMin(s.out) : capM;
+    if(a==null || b==null) return;
+    for(i=Math.max(0,a); i<Math.min(1440,b); i++) mask[i]=1;
+  });
+  (r.meals||[]).forEach(function(m){
+    var a = toMin(m.s), b = m.e!=null ? toMin(m.e) : capM;
+    if(a==null || b==null) return;
+    for(i=Math.max(0,a); i<Math.min(1440,b); i++) mask[i]=0;
+  });
+  return mask;
+}
+function countMask(mask, from, to){ var t=0; for(var i=from;i<to;i++) t+=mask[i]; return t; }
+
+/** 확정 근무시간. 아직 안 끝난 구간이 있으면 null (진행 중) */
+function workedMin(r){
+  if(!r || !(r.sessions||[]).length) return null;
+  if(openSession(r)) return null;
+  return countMask(dayMask(r, null), 0, 1440);
+}
+/** 진행 중까지 포함한 근무시간 */
+function liveMin(mid, date){
+  var r = rec(mid,date); if(!r) return 0;
+  var cap = (date === todayStr()) ? nowHM() : null;
+  return countMask(dayMask(r, cap), 0, 1440);
+}
+function isWorking(mid){ return !!openSession(rec(mid, todayStr())); }
+function onMeal(mid){
+  var r = rec(mid, todayStr()); if(!r) return false;
+  return (r.meals||[]).some(function(m){ return m.s && !m.e; });
+}
+function weekMin(mid, mon){
+  var t=0;
+  weekDates(mon).forEach(function(d){ t += liveMin(mid,d); });
+  return t;
+}
+
+/* ===== 코어타임 ===== */
+function coreGap(r, cap){
+  var cs=toMin(S.settings.coreStart), ce=toMin(S.settings.coreEnd);
+  var total = ce-cs;
+  if(!r || !(r.sessions||[]).length) return {missing: total, total: total};
+  var covered = countMask(dayMask(r, cap===undefined ? nowHM() : cap), cs, ce);
+  return {missing: Math.max(0, total-covered), total: total};
+}
+
+/* ===== 자정 넘김 처리 =====
+ * 밤샘 근무로 날짜가 바뀌면, 시작한 날은 23:59 퇴근으로 마감하고 다음 날 00:00 출근을 새로 연다.
+ * 어제 → 오늘 한 칸만 이어 붙인다. 그보다 오래된 열린 기록은 퇴근을 잊은 것으로 보고
+ * 23:59 로 마감만 하고 이후 날짜를 만들어내지 않는다(없는 근무를 지어내지 않기 위해).
+ * 바뀐 게 있으면 true 를 돌려준다. */
+function rollMidnight(){
+  var today = todayStr(), yest = addDays(today, -1), changed = false;
+  S.members.forEach(function(m){
+    Object.keys(S.days).forEach(function(k){
+      var parts = k.split("|");
+      if(parts[0] !== m.id) return;
+      var date = parts[1];
+      if(date >= today) return;
+      var r = S.days[k], s = openSession(r);
+      if(!s) return;
+      s.out = "23:59";                       // 시작한 날은 자정 직전까지로 마감
+      (r.meals||[]).forEach(function(ml){ if(ml.s && !ml.e) ml.e = "23:59"; });
+      r.autoClosed = date;
+      changed = true;
+      if(date === yest){                     // 어제에서 오늘로 이어지는 밤샘이면 00:00 출근을 연다
+        var nx = ensure(m.id, today);
+        if(!openSession(nx)){
+          nx.sessions.push({"in":"00:00", out:null});
+          nx.carriedFrom = date;
+        }
+      }
+    });
+  });
+  return changed;
+}
+
+/* ===== 휴무 고지 ===== */
+function noticeStatus(mid, mon){
+  var d = offDate(mid,mon);
+  if(!d) return {code:"none"};
+  var at = offNotice(mid,mon);
+  if(!at) return {code:"late"};
+  var t = new Date(at);
+  var deadline = parseYmd(mon); deadline.setHours(23,59,59,999);   // 해당 주 월요일 자정
+  return t <= deadline ? {code:"ok", at:t} : {code:"late", at:t};
+}
+
+/* ===== escaping ===== */
+function esc(s){
+  return String(s==null?"":s).replace(/[&<>"']/g, function(c){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
+  });
+}
+
+/* ===== 저장소 =====
+ * CONFIG.apiUrl 이 비어 있으면 이 브라우저에만 저장한다(혼자 쓰기).
+ * 채워져 있으면 그 주소를 팀 공용 저장소로 쓴다.
+ * 프로토콜은 한 가지뿐이다 — POST + text/plain 으로 {op, key, ...} 를 보낸다.
+ * text/plain 을 쓰는 이유: 브라우저가 사전 요청(preflight)을 보내지 않아
+ * Cloudflare Worker 든 Google Apps Script 든 CORS 설정이 단순해진다. */
+var VERSION = 0;              // 서버가 들고 있는 판 번호. 저장할 때 같이 보내 충돌을 잡는다.
+var LS_KEY = "punchcard.state";
+var LS_TEAMKEY = "punchcard.teamkey";
+
+/* 팀 암호는 코드가 아니라 각자 브라우저에 둔다(저장소가 공개이므로).
+ * 시크릿 창이나 사이트 데이터 차단 환경에서는 localStorage 가 막힌다.
+ * 그때는 메모리에만 들고 있는다 — 탭을 닫으면 다시 물어보지만, 못 들어가지는 않는다. */
+var memKey = "";
+function teamKey(){
+  try { return localStorage.getItem(LS_TEAMKEY) || memKey; } catch(e){ return memKey; }
+}
+function setTeamKey(v){
+  memKey = v;
+  try { localStorage.setItem(LS_TEAMKEY, v); } catch(e){}
+}
+function forgetTeamKey(){
+  memKey = "";
+  try { localStorage.removeItem(LS_TEAMKEY); } catch(e){}
+}
+
+function api(payload){
+  payload.key = teamKey();
+  return fetch(CONFIG.apiUrl, {
+    method: "POST",
+    headers: {"Content-Type": "text/plain;charset=utf-8"},
+    body: JSON.stringify(payload)
+  }).then(function(res){
+    if(res.status === 403){
+      var e = new Error("팀 암호가 맞지 않습니다");
+      e.badKey = true;
+      throw e;
+    }
+    if(!res.ok) throw new Error("HTTP " + res.status);
+    return res.json();
+  });
+}
+
+var Store = {
+  shared: function(){ return !!(CONFIG.apiUrl && CONFIG.apiUrl.indexOf("http") === 0); },
+
+  load: function(){
+    if(!this.shared()){
+      try {
+        var raw = localStorage.getItem(LS_KEY);
+        return Promise.resolve(raw ? {version: 0, state: JSON.parse(raw)} : null);
+      } catch(e){ return Promise.resolve(null); }
+    }
+    return api({op: "load"});
+  },
+
+  save: function(state){
+    if(!this.shared()){
+      try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch(e){}
+      return Promise.resolve({ok: true, version: 0});
+    }
+    return api({op: "save", version: VERSION, state: state});
+  }
+};
+
+/** 암호가 틀렸을 때: 저장해둔 것을 지우고 다시 입력받는다. */
+function onBadKey(){
+  forgetTeamKey();
+  ui.keyError = "팀 암호가 맞지 않습니다. 다시 입력해주세요.";
+  render();
+}
+
+/* 저장은 몰아서 한 번만 보낸다. 시간을 연달아 고쳐도 요청이 쌓이지 않는다. */
+var saveTimer = null, saveAgain = false;
+function save(){
+  if(READONLY) return;
+  saving = true; render();
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(flushSave, 400);
+}
+function flushSave(){
+  if(inFlight){ saveAgain = true; return; }
+  inFlight = true;
+  Store.save(S).then(function(res){
+    inFlight = false;
+    saving = false;
+    if(res && res.conflict){
+      /* 다른 팀원이 먼저 저장했다. 서버 것을 바탕으로 삼되,
+         내가 마지막 동기화 이후 바꾼 부분만 그 위에 다시 얹는다.
+         통째로 갈아끼우면 방금 누른 출퇴근이 사라진다. */
+      var mine = S;
+      adopt(res.state, res.version);
+      mergeMine(mine);
+      render();
+      flush2();
+      return;
+    }
+    if(res && typeof res.version === "number") VERSION = res.version;
+    baseState = copy(S);
+    render();
+    if(saveAgain){ saveAgain = false; flushSave(); }
+  }).catch(function(err){
+    inFlight = false; saving = false;
+    if(err && err.badKey) return onBadKey();
+    flash("저장하지 못했습니다. 인터넷 연결과 저장소 주소를 확인해주세요. (" + (err && err.message) + ")");
+  });
+}
+var inFlight = false;
+function flush2(){ clearTimeout(saveTimer); saveTimer = setTimeout(flushSave, 300); }
+
+/* baseState 는 "서버와 마지막으로 맞춘 시점의 내 상태"다.
+ * 지금 상태와 비교하면 내가 그 뒤로 바꾼 것만 정확히 골라낼 수 있다. */
+var baseState = null;
+function copy(o){ return JSON.parse(JSON.stringify(o)); }
+function same(a, b){ return JSON.stringify(a) === JSON.stringify(b); }
+
+/** 서버 상태(현재 S) 위에, mine 이 baseState 대비 바꾼 부분만 얹는다. */
+function mergeMine(mine){
+  var base = baseState || {members:[], days:{}, off:{}, settings:{}};
+
+  // 팀원: 내가 새로 추가한 사람만 더한다. 서버에 있는 사람은 건드리지 않는다.
+  (mine.members||[]).forEach(function(m){
+    var inBase = (base.members||[]).some(function(x){ return x.id===m.id; });
+    var inServer = S.members.some(function(x){ return x.id===m.id; });
+    if(!inBase && !inServer) S.members.push(m);
+  });
+  // 내가 지운 사람은 서버에서도 지운다.
+  (base.members||[]).forEach(function(m){
+    var stillMine = (mine.members||[]).some(function(x){ return x.id===m.id; });
+    if(!stillMine) S.members = S.members.filter(function(x){ return x.id!==m.id; });
+  });
+
+  ["days","off"].forEach(function(bucket){
+    // 내가 고치거나 새로 만든 항목을 얹는다 (하루·한 사람 단위라 서로 겹치지 않는다)
+    Object.keys(mine[bucket]||{}).forEach(function(k){
+      if(!same(mine[bucket][k], (base[bucket]||{})[k])) S[bucket][k] = mine[bucket][k];
+    });
+    // 내가 지운 항목은 서버에서도 지운다
+    Object.keys(base[bucket]||{}).forEach(function(k){
+      if(!(k in (mine[bucket]||{}))) delete S[bucket][k];
+    });
+  });
+
+  if(!same(mine.settings, base.settings)) S.settings = mine.settings;
+}
+
+/** 서버에서 받은 상태를 통째로 갈아끼운다. */
+function adopt(state, version){
+  if(!state) return;
+  S = state;
+  S.members = S.members || []; S.days = S.days || {}; S.off = S.off || {};
+  S.settings = Object.assign({goalMin:3600, coreStart:"13:00", coreEnd:"18:00"}, S.settings||{});
+  delete S.settings.sundayOff;
+  if(typeof version === "number") VERSION = version;
+  migrate();
+  baseState = copy(S);        // 여기까지가 서버와 맞춰진 내용
+}
+
+/** 다른 팀원의 변경을 주기적으로 받아온다. 내가 편집 중일 때는 건너뛴다. */
+function poll(){
+  if(!Store.shared() || !teamKey() || inFlight || ui.dialog) return;
+  if(document.querySelector("input:focus")) return;
+  Store.load().then(function(res){
+    if(!res || typeof res.version !== "number") return;
+    if(res.version === VERSION) return;      // 바뀐 게 없다
+    var mine = S;
+    adopt(res.state, res.version);
+    mergeMine(mine);                         // 아직 저장 못 한 내 변경은 지키고
+    rollMidnight();
+    render();
+    if(!same(S, baseState)) save();          // 남아 있던 내 변경을 마저 저장한다
+  }).catch(function(){ /* 잠깐 끊긴 것뿐이면 다음 차례에 다시 시도한다 */ });
+}
+
+var flashMsg = null, flashTimer = null;
+function flash(m){
+  flashMsg = m; clearTimeout(flashTimer);
+  flashTimer = setTimeout(function(){ flashMsg=null; render(); }, 4000);
+  render();
+}
+
+/* ===== render ===== */
+function render(){
+  /* 팀 저장소를 쓰는데 아직 암호가 없으면, 암호부터 받는다. */
+  if(Store.shared() && !teamKey()){
+    document.getElementById("app").innerHTML =
+      '<div class="wrap"><div class="top"><div class="brand"><h1>펀치카드</h1>'
+      + '<span class="sub">팀 출퇴근 기록</span></div></div>'
+      + '<section class="card" style="max-width:460px"><div class="card-hd"><h2>팀 암호</h2></div>'
+      + '<div class="card-bd"><div class="hint" style="margin-bottom:12px">'
+      + '팀에서 정한 암호를 한 번만 입력하면 이 브라우저가 기억합니다.<br>'
+      + '암호를 모르면 팀에 물어보세요.</div>'
+      + '<div class="addform"><input type="password" id="teamkey" data-act="keyinput" '
+      + 'placeholder="팀 암호" autocomplete="off">'
+      + '<button class="btn sm primary" data-act="setkey">입장</button></div>'
+      + (ui.keyError ? '<ul class="warnlist"><li>'+esc(ui.keyError)+'</li></ul>' : '')
+      + '</div></section></div>';
+    bind();
+    var kf = document.getElementById("teamkey");
+    if(kf) kf.focus();
+    return;
+  }
+
+  if(!S.members.length){ ui.adding = true; ui.autoOpened = true; }   // 첫 화면에서는 팀원 추가 폼을 바로 연다
+  else if(ui.autoOpened){ ui.adding = false; ui.autoOpened = false; } // 저장소에서 팀원을 받아오면 도로 접는다
+  var mon = ui.weekMon, dates = weekDates(mon), today = todayStr();
+  var me = ui.me && S.members.some(function(m){return m.id===ui.me;}) ? ui.me : null;
+  ui.me = me;
+  var meObj = me ? S.members.filter(function(m){return m.id===me;})[0] : null;
+  var html = "";
+
+  html += '<div class="wrap">';
+
+  /* header */
+  html += '<div class="top"><div class="brand"><h1>펀치카드</h1>'
+       +  '<span class="sub">주 '+(S.settings.goalMin/60)+'시간 · 6일 근무 · 코어 '+S.settings.coreStart+'–'+S.settings.coreEnd+'</span></div>';
+  html += '<div class="who"><span class="label">나는</span><div class="chipbar">';
+  S.members.forEach(function(m){
+    html += '<button class="chip" aria-pressed="'+(m.id===me)+'" data-act="setme" data-id="'+m.id+'">'+esc(m.name)
+         + (isWorking(m.id) ? '<span class="dot live"></span>' : '') + '</button>';
+  });
+  html += '<button class="chip ghost" data-act="addopen">'+(ui.adding?'닫기':'+ 팀원 추가')+'</button>';
+  html += '</div></div></div>';
+
+  if(ui.adding){
+    html += '<div class="banner addform"><span class="label">새 팀원</span>'
+         +  '<input type="text" id="newname" data-act="addname" maxlength="20" placeholder="이름을 입력하고 Enter" value="'+esc(ui.addName)+'">'
+         +  '<button class="btn sm primary" data-act="addmember">추가</button></div>';
+  }
+
+  if(!Store.shared()){
+    html += '<div class="banner"><b>이 브라우저에만 저장됩니다.</b> 팀원과 기록을 공유하려면 '
+         +  'index.html 맨 위 <code>CONFIG.apiUrl</code> 에 저장소 주소를 넣어주세요. '
+         +  '(설정 방법은 저장소의 README.md 참고)</div>';
+  }
+  if(flashMsg){ html += '<div class="banner">'+esc(flashMsg)+'</div>'; }
+
+  if(!S.members.length){
+    html += '<div class="card"><div class="card-bd"><div class="empty">'
+         +  '아직 등록된 팀원이 없습니다. 위 칸에 이름을 넣고 <b>추가</b>를 누르면 시작할 수 있어요.<br>'
+         +  '팀원 모두를 등록한 뒤, 각자 자기 이름을 눌러 출퇴근을 찍습니다.'
+         +  '</div></div></div>';
+    html += rulesFoot();
+    html += dialogHtml();
+    html += '</div>';
+    document.getElementById("app").innerHTML = html;
+    bind(); return;
+  }
+
+  html += '<div class="grid"><div>';
+
+  /* ---- 펀치 패널 ---- */
+  html += '<section class="card"><div class="card-hd"><h2>오늘의 기록</h2>'
+       +  '<span class="hint">'+(meObj ? esc(meObj.name) : '팀원을 선택하세요')+'</span></div><div class="card-bd">';
+  if(!meObj){
+    html += '<div class="empty">상단에서 본인 이름을 선택하면 출퇴근을 찍을 수 있습니다.</div>';
+  } else {
+    var r = rec(me, today);
+    var d = new Date();
+    html += '<div class="clock"><div class="now mono">'+nowHM()+'</div>'
+         +  '<div class="date">'+ (d.getMonth()+1)+'월 '+d.getDate()+'일 ('+DOW[d.getDay()]+')'
+         +  '<br><span class="hint">'+ (isOff(me,today) || '근무일') +'</span></div></div>';
+
+    var live = liveMin(me, today);
+    var sess = (r && r.sessions) ? r.sessions : [];
+    var open = openSession(r), eating = onMeal(me);
+    var status = !sess.length ? "미출근" : (open ? (eating ? "식사 중" : "근무 중") : "퇴근 완료");
+    html += '<div class="state"><div><div class="k">'+status+'</div>'
+         +  '<div class="v mono">'+hmShort(live)+'</div></div>'
+         +  '<div style="text-align:right"><div class="k">'+(sess.length>1?sess.length+'회 근무':'출근 / 퇴근')+'</div><div class="mono">'
+         +  (firstIn(r)||"--:--")+' → '+(open ? "근무 중" : (lastOut(r)||"--:--"))+'</div></div></div>';
+
+    if(sess.length > 1 || (sess.length === 1 && sess[0].out)){
+      html += '<div class="hint mono" style="margin-top:8px">'
+           +  sess.map(function(s,i){
+                return (i+1)+'차 '+s["in"]+'–'+(s.out||'진행 중');
+              }).join(' &nbsp;·&nbsp; ') + '</div>';
+    }
+
+    var inLabel = !sess.length ? "출근" : (sess.length+1)+"차 출근";
+    html += '<div class="punch">'
+      + '<button class="btn '+(!open?'primary':'')+'" data-act="punch" data-k="in" '+(open?'disabled':'')+'>'+inLabel+'</button>'
+      + '<button class="btn '+(open&&!eating?'primary':'')+'" data-act="punch" data-k="out" '+(!open?'disabled':'')+'>퇴근</button>'
+      + '<button class="btn" data-act="punch" data-k="meal-s" '+(!open||eating?'disabled':'')+'>식사 시작</button>'
+      + '<button class="btn" data-act="punch" data-k="meal-e" '+(!eating?'disabled':'')+'>식사 종료</button>'
+      + '</div>';
+    if(r && (r.meals||[]).length){
+      html += '<div class="hint" style="margin-top:10px">식사 '+r.meals.length+'회 · 총 '+hm(mealMinutes(r))+' (근무시간에서 제외)</div>';
+    }
+    var warns = dayWarnings(me, today);
+    if(warns.length){
+      html += '<ul class="warnlist">' + warns.map(function(w){ return '<li>'+esc(w)+'</li>'; }).join("") + '</ul>';
+    }
+  }
+  html += '</div></section>';
+
+  /* ---- 주간 진행률 ---- */
+  if(meObj){
+    var wm = weekMin(me, mon), goal = S.settings.goalMin;
+    var pct = Math.min(100, wm/goal*100);
+    var remain = Math.max(0, goal-wm);
+    var leftDays = dates.filter(function(dt){
+      return !isOff(me,dt) && dt >= today && !(rec(me,dt) && rec(me,dt).out);
+    }).length;
+    html += '<section class="card"><div class="card-hd"><h2>이번 주 누적</h2>'
+         +  '<span class="tag '+(wm>=goal?'ok':(remain>0&&leftDays===0?'bad':'mute'))+'">'
+         +  (wm>=goal?'목표 달성':(leftDays===0?'미달':Math.round(pct)+'%'))+'</span></div><div class="card-bd">';
+    html += '<div class="big mono">'+hmShort(wm)+'<small> / '+(goal/60)+'시간</small></div>';
+    html += '<div class="meter"><div class="bar"><div class="fill" style="width:'+pct.toFixed(1)+'%"></div></div>'
+         +  '<div class="cap"><span>남은 시간 '+hm(remain)+'</span><span>'
+         +  (leftDays>0 ? '남은 '+leftDays+'일 · 하루 '+hm(remain/leftDays) : '이번 주 근무일 종료')
+         +  '</span></div></div>';
+    html += '</div></section>';
+
+    /* ---- 휴무 지정 ---- */
+    var od = offDate(me,mon), ns = noticeStatus(me,mon);
+    html += '<section class="card"><div class="card-hd"><h2>이번 주 휴무</h2>'
+         +  (od ? '<span class="tag '+(ns.code==="ok"?'ok':'warn')+'">'+(ns.code==="ok"?'사전 고지 완료':'월요일 이후 고지')+'</span>'
+               : '<span class="tag warn">미지정</span>')
+         +  '</div><div class="card-bd">';
+    html += '<div class="hint" style="margin-bottom:10px">일요일·월요일은 고정 근무일입니다. 나머지 화~토 5일 중 하루를 고르고, 월요일 안에 정해야 사전 고지로 인정됩니다.</div>';
+    html += '<div class="chipbar">';
+    dates.forEach(function(dt){
+      var wd = parseYmd(dt).getDay();
+      if(wd===0 || wd===1) return;                 // 일·월 제외
+      html += '<button class="chip" aria-pressed="'+(od===dt)+'" data-act="setoff" data-d="'+dt+'">'
+           +  DOW[wd]+' <span class="mono" style="font-size:11px">'+dt.slice(5).replace("-","/")+'</span></button>';
+    });
+    if(od) html += '<button class="chip ghost" data-act="clearoff">해제</button>';
+    html += '</div>';
+    html += '<div class="hint" style="margin-top:10px">주 6일 근무 · 하루 평균 '
+         +  hm(S.settings.goalMin/6) + ' 필요</div>';
+    html += '</div></section>';
+  }
+
+  html += '</div><div>';   /* ---- 오른쪽 열 ---- */
+
+  /* ---- 팀 보드 ---- */
+  html += '<section class="card"><div class="card-hd">'
+       +  '<h2>팀 주간 보드</h2><div class="chipbar">'
+       +  '<button class="btn sm" data-act="week" data-n="-1">‹ 지난주</button>'
+       +  '<span class="mono" style="padding:0 6px">'+mon.replace(/-/g,".")+' – '+addDays(mon,6).slice(5).replace("-",".")+'</span>'
+       +  '<button class="btn sm" data-act="week" data-n="1">다음주 ›</button>'
+       +  '<button class="btn sm" data-act="week" data-n="0">이번주</button>'
+       +  '</div></div><div class="scroller">';
+  html += '<table><thead><tr><th class="name">팀원</th>';
+  dates.forEach(function(dt){
+    var wd = parseYmd(dt).getDay();
+    html += '<th'+(dt===today?' style="color:var(--accent)"':'')+'>'+DOW[wd]
+         +  '<span class="dnum mono">'+dt.slice(5).replace("-","/")+'</span></th>';
+  });
+  html += '<th class="total">합계</th><th>목표</th></tr></thead><tbody>';
+  S.members.forEach(function(m){
+    html += '<tr class="'+(m.id===me?'me':'')+'"><td class="name">'+esc(m.name)
+         +  (isWorking(m.id)?'<span class="dot live"></span>':'')+'</td>';
+    dates.forEach(function(dt){
+      var off = isOff(m.id, dt), r = rec(m.id, dt);
+      var w = workedMin(r), nsess = (r && r.sessions) ? r.sessions.length : 0;
+      var cls = "cell" + (off?" off":"") + (dt===today?" today":"");
+      var body;
+      if(off) body = '<span class="hrs">휴무</span>';
+      else if(!nsess) body = '<span class="hrs" style="color:var(--ink3)">–</span>';
+      else if(w == null) body = '<span class="hrs" style="color:var(--accent)">'+hmShort(liveMin(m.id,dt))+'…</span>';
+      else body = '<span class="hrs">'+hmShort(w)+'</span>';
+      if(nsess > 1) body += '<br><span class="tag mute" style="font-size:10px">'+nsess+'회</span>';
+      if(!off && nsess && w != null){
+        var gap = coreGap(r, null).missing;
+        if(gap > 0) body += '<br><span class="tag warn" style="font-size:10px">코어 -'+hmShort(gap)+'</span>';
+      }
+      html += '<td class="'+cls+'" data-act="pick" data-id="'+m.id+'" data-d="'+dt+'">'+body+'</td>';
+    });
+    var t = weekMin(m.id, mon), g = S.settings.goalMin;
+    html += '<td class="total mono">'+hmShort(t)+'</td>'
+         +  '<td><span class="tag '+(t>=g?'ok':(t>=g*0.8?'warn':'bad'))+'">'+Math.round(t/g*100)+'%</span></td></tr>';
+  });
+  html += '</tbody></table></div></section>';
+
+  /* ---- 상세 편집 ---- */
+  var sel = ui.sel;
+  html += '<section class="card" id="detail"><div class="card-hd"><h2>기록 상세</h2>'
+       +  '<span class="hint">'+(sel?'표에서 다른 칸을 눌러 이동':'보드에서 칸을 누르면 시간을 직접 고칠 수 있습니다')+'</span></div><div class="card-bd">';
+  if(!sel){
+    html += '<div class="empty">수정할 날짜 칸을 선택해주세요.</div>';
+  } else {
+    var sm = S.members.filter(function(x){return x.id===sel.id;})[0];
+    if(!sm){ ui.sel=null; }
+    else {
+      var sr = rec(sel.id, sel.d) || {sessions:[], meals:[], note:""};
+      var swd = parseYmd(sel.d).getDay(), soff = isOff(sel.id, sel.d);
+      var swork = workedMin(sr);
+      html += '<div class="row" style="margin-bottom:12px"><b style="font-size:16px">'+esc(sm.name)+'</b>'
+           +  '<span class="mono">'+sel.d+' ('+DOW[swd]+')</span>'
+           +  (soff?'<span class="tag mute">'+esc(soff)+'</span>':'')
+           +  (sr.carriedFrom?'<span class="tag mute">전날에서 이어짐</span>':'')
+           +  (sr.autoClosed?'<span class="tag warn">자동 마감</span>':'')
+           +  '<span style="flex:1"></span>'
+           +  '<span class="tag '+(swork!=null?'ok':'mute')+'">근무 '+hmShort(swork!=null?swork:liveMin(sel.id,sel.d))+'</span></div>';
+      html += '<div class="rows">';
+      (sr.sessions||[]).forEach(function(s2, i){
+        html += '<div class="row"><span class="k">'+(i+1)+'차 근무</span>'
+             +  '<input type="time" data-act="sess" data-i="'+i+'" data-f="in" value="'+(s2["in"]||"")+'">'
+             +  '<span class="hint">~</span>'
+             +  '<input type="time" data-act="sess" data-i="'+i+'" data-f="out" value="'+(s2.out||"")+'">'
+             +  '<span class="hint mono">'+(s2.out ? hm(span(s2["in"],s2.out)) : "진행 중")+'</span>'
+             +  '<button class="btn sm" data-act="delsess" data-i="'+i+'">삭제</button></div>';
+      });
+      html += '<div class="row"><span class="k"></span><button class="btn sm" data-act="addsess">+ 근무 구간 추가</button>'
+           +  '<span class="hint">퇴근 후 다시 출근한 경우 구간을 나눠 적습니다</span></div>';
+      (sr.meals||[]).forEach(function(m2, i){
+        html += '<div class="row"><span class="k">식사 '+(i+1)+'</span>'
+             +  '<input type="time" data-act="meal" data-i="'+i+'" data-f="s" value="'+(m2.s||"")+'">'
+             +  '<span class="hint">~</span>'
+             +  '<input type="time" data-act="meal" data-i="'+i+'" data-f="e" value="'+(m2.e||"")+'">'
+             +  '<span class="hint mono">'+(span(m2.s,m2.e)!=null?hm(span(m2.s,m2.e)):"진행 중")+'</span>'
+             +  '<button class="btn sm" data-act="delmeal" data-i="'+i+'">삭제</button></div>';
+      });
+      html += '<div class="row"><span class="k"></span><button class="btn sm" data-act="addmeal">+ 식사 시간 추가</button>'
+           +  '<span class="hint">식사 시간은 근무시간에서 빠집니다</span></div>';
+      html += '<div class="row"><span class="k">메모</span>'
+           +  '<input type="text" data-act="note" value="'+esc(sr.note||"")+'" placeholder="수업, 외부 일정 등"></div>';
+      html += '</div>';
+      var w2 = dayWarnings(sel.id, sel.d);
+      if(w2.length) html += '<ul class="warnlist">'+w2.map(function(w){return '<li>'+esc(w)+'</li>';}).join("")+'</ul>';
+      html += '<div class="sep"></div><div class="row"><button class="btn sm" data-act="clearday">이 날 기록 지우기</button>'
+           +  '<span style="flex:1"></span><button class="btn sm" data-act="delmember" data-id="'+sel.id+'">'+esc(sm.name)+' 팀원 삭제</button></div>';
+    }
+  }
+  html += '</div></section>';
+
+  html += '</div></div>';   /* grid */
+
+  html += rulesFoot();
+  html += dialogHtml();
+  html += '</div>';
+
+  document.getElementById("app").innerHTML = html;
+  bind();
+}
+
+function dialogHtml(){
+  var d = ui.dialog;
+  if(!d) return "";
+  return '<div class="veil" data-act="veil"><div class="dialog" role="dialog" aria-modal="true">'
+    + '<h3>'+esc(d.title)+'</h3><p>'+esc(d.msg)+'</p>'
+    + '<div class="acts"><button class="btn sm" data-act="dlg-no">취소</button>'
+    + '<button class="btn sm primary" data-act="dlg-yes">'+esc(d.okLabel||"확인")+'</button></div>'
+    + '</div></div>';
+}
+
+function rulesFoot(){
+  var s = S.settings;
+  return '<section class="card" style="margin-top:16px"><div class="card-hd"><h2>팀 규칙</h2>'
+    + '<button class="btn sm" data-act="settings">'+(ui.showSettings?'닫기':'기준값 수정')+'</button></div><div class="card-bd">'
+    + (ui.showSettings
+      ? '<div class="rows" style="margin-bottom:14px">'
+        + '<div class="row"><span class="k">주 목표</span>'
+        + '<input type="number" data-act="setting" data-f="goal" min="1" max="168" step="1" value="'+(s.goalMin/60)+'" style="width:90px"> 시간</div>'
+        + '<div class="row"><span class="k">코어타임</span>'
+        + '<input type="time" data-act="setting" data-f="coreStart" value="'+s.coreStart+'"> ~ '
+        + '<input type="time" data-act="setting" data-f="coreEnd" value="'+s.coreEnd+'"></div>'
+        + '<div class="sep"></div></div>'
+      : '')
+    + '<ol class="rules hint">'
+    + '<li>주 '+(s.goalMin/60)+'시간을 채웁니다. (식사 시간 제외)</li>'
+    + '<li>코어타임 '+s.coreStart+'~'+s.coreEnd+'은 원칙적으로 필수 — 시스템은 막지 않고 경고만 남깁니다.</li>'
+    + '<li>일요일·월요일은 무조건 근무. 휴무는 나머지 화~토 5일 중 하루이며, 해당 주 월요일 안에 고지해야 합니다.</li>'
+    + '<li>점심·저녁 시간은 시작/종료를 따로 찍어 근무시간에서 제외합니다.</li>'
+    + '</ol>'
+    + '<div class="foot"><span>'+(saving?'저장 중…':(Store.shared()?'변경하면 팀 전체 화면에 반영됩니다 (15초마다 동기화)':'이 브라우저에만 저장 중'))+'</span>'
+    + '<span class="mono">'+S.members.length+'명 · 기록 '+Object.keys(S.days).length+'건</span></div>'
+    + '</div></section>';
+}
+
+function dayWarnings(mid, date){
+  var out = [], r = rec(mid,date), off = isOff(mid,date);
+  var mon = mondayOf(parseYmd(date));
+  var nsess = (r && r.sessions) ? r.sessions.length : 0;
+  if(off){
+    if(nsess) out.push(off+"로 지정된 날에 출근 기록이 있습니다.");
+    return out;
+  }
+  if(!nsess) return out;
+  if(r.autoClosed) out.push("자정을 넘겨 근무가 이어져, 이 날은 23:59 퇴근으로 자동 마감했습니다. 실제와 다르면 시간을 고쳐주세요.");
+  if(r.carriedFrom) out.push("전날 "+r.carriedFrom+" 근무가 자정을 넘겨 00:00 출근으로 이어졌습니다.");
+  r.sessions.forEach(function(s, i){
+    if(s["in"] && s.out && toMin(s.out) < toMin(s["in"])){
+      out.push((i+1)+"차 근무의 퇴근이 출근보다 이릅니다. 자정을 넘긴 근무라면 날짜를 나눠 적어주세요.");
+    }
+  });
+  var g = coreGap(r, date === todayStr() ? nowHM() : null);
+  if(g.missing > 0){
+    out.push("코어타임 "+S.settings.coreStart+"~"+S.settings.coreEnd+" 중 "+hm(g.missing)+"이 비어 있습니다. (경고일 뿐, 기록은 그대로 저장됩니다)");
+  }
+  if(openSession(r) && date < todayStr()) out.push("퇴근 기록이 없습니다. 시간을 직접 입력해 마감해주세요.");
+  if((r.meals||[]).some(function(m){ return m.s && !m.e; }) && date < todayStr()) out.push("종료되지 않은 식사 기록이 있습니다.");
+  if(!offDate(mid,mon)) out.push("이번 주 휴무일이 아직 지정되지 않았습니다.");
+  else if(noticeStatus(mid,mon).code === "late") out.push("휴무일을 월요일 이후에 지정했습니다. 다음 주부터는 월요일 안에 고지해주세요.");
+  return out;
+}
+
+/* ===== events ===== */
+function bind(){
+  var app = document.getElementById("app");
+  app.querySelectorAll("[data-act]").forEach(function(el){
+    var act = el.getAttribute("data-act");
+    if(act === "keyinput"){
+      el.addEventListener("keydown", function(e){
+        if(e.key === "Enter"){ e.preventDefault(); handle("setkey", el); }
+      });
+      return;
+    }
+    if(act === "addname"){
+      el.addEventListener("input", function(){ ui.addName = el.value; });
+      el.addEventListener("keydown", function(e){
+        if(e.key === "Enter"){ e.preventDefault(); handle("addmember", el); }
+        if(e.key === "Escape"){ ui.adding = false; ui.addName = ""; render(); }
+      });
+      return;
+    }
+    if(el.tagName === "INPUT"){
+      el.addEventListener("change", function(){ handle(act, el); });
+      return;
+    }
+    el.addEventListener("click", function(e){
+      if(act === "veil" && e.target !== el) return;      // 대화상자 안쪽 클릭은 무시
+      e.preventDefault(); handle(act, el);
+    });
+  });
+  if(ui.focusAdd){
+    ui.focusAdd = false;
+    var nn = document.getElementById("newname");
+    if(nn && !ui.dialog){ nn.focus(); nn.setSelectionRange(nn.value.length, nn.value.length); }
+  }
+}
+
+function handle(act, el){
+  var me = ui.me, today = todayStr(), mon = ui.weekMon;
+
+  if(act === "setme"){
+    ui.me = el.getAttribute("data-id");
+    try { localStorage.setItem("punchcard.me", ui.me); } catch(e){}
+    render(); return;
+  }
+  if(act === "setkey"){
+    var kf = document.getElementById("teamkey");
+    var v = kf ? kf.value.trim() : "";
+    if(!v){ if(kf) kf.focus(); return; }
+    setTeamKey(v);
+    ui.keyError = null;
+    render();
+    Store.load().then(function(res){
+      if(res && res.state) adopt(res.state, res.version); else migrate();
+      if(rollMidnight()) save();
+      render();
+    }).catch(function(err){
+      if(err && err.badKey) return onBadKey();
+      flash("저장소에 연결하지 못했습니다. (" + (err && err.message) + ")");
+    });
+    return;
+  }
+  if(act === "veil" || act === "dlg-no"){ ui.dialog = null; render(); return; }
+  if(act === "dlg-yes"){
+    var fn = ui.dialog && ui.dialog.ok;
+    ui.dialog = null;
+    if(fn) fn(); else render();
+    return;
+  }
+  if(act === "addopen"){
+    ui.adding = !ui.adding; ui.addName = ""; ui.focusAdd = ui.adding;
+    render(); return;
+  }
+  if(act === "addmember"){
+    var field = document.getElementById("newname");
+    var n = ((field ? field.value : ui.addName) || "").trim();
+    if(!n){ if(field) field.focus(); return; }
+    var id = "m" + Date.now().toString(36) + Math.floor(Math.random()*99).toString(36);
+    S.members.push({id:id, name:n.slice(0,20)});
+    ui.addName = ""; ui.focusAdd = true;
+    if(!ui.me){ ui.me = id; try{ localStorage.setItem("punchcard.me", id); }catch(e){} }
+    render(); save(); return;
+  }
+  if(act === "delmember"){
+    var id2 = el.getAttribute("data-id");
+    var mm = S.members.filter(function(x){return x.id===id2;})[0];
+    if(!mm) return;
+    askConfirm("팀원 삭제", mm.name + " 님과 그동안의 모든 기록을 지웁니다. 되돌릴 수 없습니다.", "삭제", function(){
+      S.members = S.members.filter(function(x){return x.id!==id2;});
+      Object.keys(S.days).forEach(function(k){ if(k.indexOf(id2+"|")===0) delete S.days[k]; });
+      Object.keys(S.off).forEach(function(k){ if(k.indexOf(id2+"|")===0) delete S.off[k]; });
+      if(ui.me===id2) ui.me=null;
+      if(ui.sel && ui.sel.id===id2) ui.sel=null;
+      render(); save();
+    });
+    return;
+  }
+  if(act === "week"){
+    var n2 = +el.getAttribute("data-n");
+    ui.weekMon = n2===0 ? mondayOf(new Date()) : addDays(ui.weekMon, n2*7);
+    render(); return;
+  }
+  if(act === "pick"){
+    ui.sel = {id: el.getAttribute("data-id"), d: el.getAttribute("data-d")};
+    render();
+    var s = document.getElementById("detail");
+    if(s) s.scrollIntoView({behavior:"smooth", block:"nearest"});
+    return;
+  }
+  if(act === "setoff"){
+    if(!me) return;
+    var d3 = el.getAttribute("data-d");
+    S.off[key(me,mon)] = {date: d3, at: new Date().toISOString()};
+    render(); save(); return;
+  }
+  if(act === "clearoff"){
+    if(!me) return;
+    delete S.off[key(me,mon)];
+    render(); save(); return;
+  }
+  if(act === "punch"){
+    if(!me) return;
+    rollMidnight();                      // 자정을 넘겼으면 먼저 날짜를 갈라 놓는다
+    today = todayStr();
+    var k = el.getAttribute("data-k"), t = nowHM();
+
+    if(k === "in"){
+      var offToday = isOff(me, today);
+      var prior = ((rec(me,today)||{}).sessions||[]).length;
+      var doIn = function(){
+        ensure(me, today).sessions.push({"in": t, out: null});
+        if(!prior && toMin(t) > toMin(S.settings.coreStart)){
+          flash("코어타임 시작("+S.settings.coreStart+")이 지난 뒤 출근했습니다. 기록은 그대로 남고, 코어타임 미충족으로 표시됩니다.");
+        }
+        render(); save();
+      };
+      if(offToday) askConfirm("휴무일 출근", "오늘은 "+offToday+"로 지정한 날입니다. 그래도 출근으로 기록할까요?", "출근 기록", doIn);
+      else doIn();
+      return;
+    }
+
+    if(k === "out"){
+      var r0 = ensure(me, today), s0 = openSession(r0);
+      if(!s0) return;
+      var saved = s0.out; s0.out = t;
+      var missing = coreGap(r0, null).missing;
+      s0.out = saved;
+      var doOut = function(){
+        var rr = ensure(me, today), ss = openSession(rr);
+        if(!ss) return;
+        ss.out = t;
+        (rr.meals||[]).forEach(function(m3){ if(m3.s && !m3.e) m3.e = t; });   // 식사 중 퇴근하면 같이 마감
+        render(); save();
+      };
+      if(missing > 0){
+        askConfirm("코어타임 미충족",
+          "코어타임 "+S.settings.coreStart+"~"+S.settings.coreEnd+" 중 "+hm(missing)+"이 비어 있습니다.\n그래도 지금 퇴근으로 기록할까요?",
+          "퇴근 기록", doOut);
+      } else doOut();
+      return;
+    }
+
+    var r = ensure(me, today);
+    if(k === "meal-s"){ r.meals.push({s:t, e:null}); }
+    else if(k === "meal-e"){ (r.meals||[]).forEach(function(m3){ if(m3.s && !m3.e) m3.e = t; }); }
+    render(); save(); return;
+  }
+  if(act === "sess" && ui.sel){
+    var rs = ensure(ui.sel.id, ui.sel.d);
+    var si = +el.getAttribute("data-i");
+    if(rs.sessions[si]) rs.sessions[si][el.getAttribute("data-f")] = el.value || null;
+    rs.sessions.sort(function(a,b){ return (toMin(a["in"])||0) - (toMin(b["in"])||0); });
+    render(); save(); return;
+  }
+  if(act === "addsess" && ui.sel){
+    var ra = ensure(ui.sel.id, ui.sel.d);
+    var last = ra.sessions.length ? ra.sessions[ra.sessions.length-1].out : null;
+    ra.sessions.push({"in": last || "09:00", out: null});
+    render(); save(); return;
+  }
+  if(act === "delsess" && ui.sel){
+    var rd = ensure(ui.sel.id, ui.sel.d);
+    rd.sessions.splice(+el.getAttribute("data-i"), 1);
+    render(); save(); return;
+  }
+  if(act === "meal" && ui.sel){
+    var r4 = ensure(ui.sel.id, ui.sel.d);
+    var i = +el.getAttribute("data-i");
+    if(r4.meals && r4.meals[i]) r4.meals[i][el.getAttribute("data-f")] = el.value || null;
+    render(); save(); return;
+  }
+  if(act === "addmeal" && ui.sel){
+    var r5 = ensure(ui.sel.id, ui.sel.d);
+    r5.meals = r5.meals || []; r5.meals.push({s:"12:00", e:"13:00"});
+    render(); save(); return;
+  }
+  if(act === "delmeal" && ui.sel){
+    var r6 = ensure(ui.sel.id, ui.sel.d);
+    r6.meals.splice(+el.getAttribute("data-i"), 1);
+    render(); save(); return;
+  }
+  if(act === "note" && ui.sel){
+    ensure(ui.sel.id, ui.sel.d).note = el.value.slice(0,120);
+    save(); return;
+  }
+  if(act === "clearday" && ui.sel){
+    var tgt = {id: ui.sel.id, d: ui.sel.d};
+    askConfirm("기록 삭제", tgt.d + " 의 출퇴근·식사 기록을 모두 지웁니다.", "지우기", function(){
+      delete S.days[key(tgt.id, tgt.d)];
+      render(); save();
+    });
+    return;
+  }
+  if(act === "settings"){ ui.showSettings = !ui.showSettings; render(); return; }
+  if(act === "setting"){
+    var f = el.getAttribute("data-f");
+    if(f === "goal"){
+      var gv = parseFloat(el.value);
+      if(!isNaN(gv) && gv > 0 && gv <= 168) S.settings.goalMin = Math.round(gv*60);
+    } else if(/^\d{2}:\d{2}$/.test(el.value)){
+      S.settings[f] = el.value;
+    }
+    render(); save(); return;
+  }
+}
+
+/* ===== boot ===== */
+render();                                  // 먼저 그려서 빈 화면을 보이지 않게 한다
+
+if(!Store.shared() || teamKey()){
+  Store.load().then(function(res){
+    if(res && res.state) adopt(res.state, res.version);
+    else migrate();
+    if(rollMidnight()) save();
+    render();
+  }).catch(function(err){
+    if(err && err.badKey) return onBadKey();
+    migrate(); render();
+    flash("저장소를 불러오지 못했습니다. 주소를 확인해주세요. (" + (err && err.message) + ")");
+  });
+}
+
+setInterval(function(){
+  if(ui.dialog || document.querySelector("input:focus")) return;   // 입력 중이면 건드리지 않는다
+  if(rollMidnight()){ render(); save(); return; }                  // 페이지를 열어둔 채 자정을 넘긴 경우
+  render();
+}, 30000);
+
+setInterval(poll, 15000);                  // 팀원의 변경 받아오기
+window.addEventListener("focus", poll);    // 탭으로 돌아왔을 때 즉시 한 번
+})();
+
+</script>
+</body>
+</html>
