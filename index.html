@@ -397,6 +397,89 @@ function noticeStatus(mid, mon){
   return t <= deadline ? {code:"ok", at:t} : {code:"late", at:t};
 }
 
+/* ===== 잠금 (팀원별 4자리 비밀번호) =====
+ * 남의 기록을 실수로 고치는 것을 막기 위한 장치다.
+ * 진짜 보안은 아니다 — 4자리는 경우의 수가 1만 개뿐이고, 해시도 저장소에 함께 들어 있다.
+ * 마음먹고 뚫으려는 사람은 막지 못한다. 팀 안에서 실수를 막는 용도로만 쓴다. */
+var LS_UNLOCK = "punchcard.unlocked";
+
+function randomSalt(){
+  var a = new Uint8Array(8);
+  if(window.crypto && crypto.getRandomValues) crypto.getRandomValues(a);
+  else for(var i=0;i<8;i++) a[i] = Math.floor(Math.random()*256);
+  return Array.prototype.map.call(a, function(b){ return ("0"+b.toString(16)).slice(-2); }).join("");
+}
+function toHex(buf){
+  return Array.prototype.map.call(new Uint8Array(buf), function(b){ return ("0"+b.toString(16)).slice(-2); }).join("");
+}
+/** SHA-256(salt|pin). 보안 컨텍스트가 아니면(http) 간단한 대체 해시를 쓴다. */
+function hashPin(salt, pin){
+  var text = salt + "|" + pin;
+  if(window.crypto && crypto.subtle && window.TextEncoder){
+    return crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)).then(toHex);
+  }
+  var h = 5381;
+  for(var i=0;i<text.length;i++) h = ((h*33) ^ text.charCodeAt(i)) >>> 0;
+  return Promise.resolve("fallback:" + h.toString(16));
+}
+function member(mid){
+  for(var i=0;i<S.members.length;i++) if(S.members[i].id===mid) return S.members[i];
+  return null;
+}
+function unlockedId(){
+  try { return localStorage.getItem(LS_UNLOCK) || memUnlock; } catch(e){ return memUnlock; }
+}
+var memUnlock = "";
+function setUnlocked(mid){
+  memUnlock = mid || "";
+  try { if(mid) localStorage.setItem(LS_UNLOCK, mid); else localStorage.removeItem(LS_UNLOCK); } catch(e){}
+}
+/** 이 팀원의 기록을 고칠 수 있는가 */
+function canEdit(mid){
+  var m = member(mid);
+  if(!m) return false;
+  if(!m.pinHash) return true;        // 비밀번호를 정하지 않은 팀원은 잠겨 있지 않다
+  return unlockedId() === mid;
+}
+function checkPin(mid, pin){
+  var m = member(mid);
+  if(!m || !m.pinHash) return Promise.resolve(false);
+  return hashPin(m.salt || "", pin).then(function(h){ return h === m.pinHash; });
+}
+
+/** 잠겨 있으면 비밀번호를 묻고, 풀리면 then 을 실행한다. */
+function requireUnlock(mid, purpose, then){
+  if(canEdit(mid)) return then();
+  var m = member(mid);
+  askPin(m ? m.name : "", purpose, function(pin, fail){
+    checkPin(mid, pin).then(function(ok){
+      if(!ok) return fail("비밀번호가 맞지 않습니다.");
+      setUnlocked(mid);
+      ui.dialog = null;
+      then();
+    });
+  });
+}
+
+/* ===== 지난주 미달분 이월 =====
+ * 바로 전 주에 목표를 못 채웠으면, 그 모자란 만큼이 이번 주 목표에 더해진다.
+ * 전 주에 아무 기록도 없으면(아직 합류 전이거나 프로젝트 시작 전) 이월하지 않는다. */
+function hasWeekRecord(mid, mon){
+  var found = false;
+  weekDates(mon).forEach(function(d){
+    var r = rec(mid,d);
+    if(r && (r.sessions||[]).length) found = true;
+  });
+  if(offDate(mid, mon)) found = true;
+  return found;
+}
+function carryMin(mid, mon){
+  var prev = addDays(mon, -7);
+  if(!hasWeekRecord(mid, prev)) return 0;
+  return Math.max(0, S.settings.goalMin - weekMin(mid, prev));
+}
+function goalFor(mid, mon){ return S.settings.goalMin + carryMin(mid, mon); }
+
 /* ===== escaping ===== */
 function esc(s){
   return String(s==null?"":s).replace(/[&<>"']/g, function(c){
@@ -622,16 +705,36 @@ function render(){
        +  '<span class="sub">주 '+(S.settings.goalMin/60)+'시간 · 6일 근무 · 코어 '+S.settings.coreStart+'–'+S.settings.coreEnd+'</span></div>';
   html += '<div class="who"><span class="label">나는</span><div class="chipbar">';
   S.members.forEach(function(m){
-    html += '<button class="chip" aria-pressed="'+(m.id===me)+'" data-act="setme" data-id="'+m.id+'">'+esc(m.name)
+    html += '<button class="chip" aria-pressed="'+(m.id===me)+'" data-act="setme" data-id="'+m.id+'">'
+         + (m.pinHash && unlockedId()!==m.id ? '🔒 ' : '') + esc(m.name)
          + (isWorking(m.id) ? '<span class="dot live"></span>' : '') + '</button>';
   });
+  if(me && canEdit(me) && member(me) && member(me).pinHash){
+    html += '<button class="chip ghost" data-act="lock">잠그기</button>';
+  }
   html += '<button class="chip ghost" data-act="addopen">'+(ui.adding?'닫기':'+ 팀원 추가')+'</button>';
   html += '</div></div></div>';
 
   if(ui.adding){
-    html += '<div class="banner addform"><span class="label">새 팀원</span>'
-         +  '<input type="text" id="newname" data-act="addname" maxlength="20" placeholder="이름을 입력하고 Enter" value="'+esc(ui.addName)+'">'
-         +  '<button class="btn sm primary" data-act="addmember">추가</button></div>';
+    html += '<div class="banner">'
+         +  '<div class="addform"><span class="label">새 팀원</span>'
+         +  '<input type="text" id="newname" data-act="addname" maxlength="20" placeholder="이름" value="'+esc(ui.addName)+'">'
+         +  '<input type="password" id="newpin" data-act="addpin" inputmode="numeric" maxlength="4" '
+         +  'placeholder="비밀번호 4자리" autocomplete="off" style="width:150px">'
+         +  '<button class="btn sm primary" data-act="addmember">추가</button></div>'
+         +  '<div class="hint" style="margin-top:8px">비밀번호는 남의 기록을 실수로 고치지 않게 하는 잠금입니다. 잊으면 팀원을 지우고 다시 만들어야 하니 기억해두세요.</div>'
+         +  (ui.addError ? '<ul class="warnlist"><li>'+esc(ui.addError)+'</li></ul>' : '')
+         +  (S.members.length
+            ? '<div class="sep"></div><div class="chipbar"><span class="label">등록된 팀원</span>'
+              + S.members.map(function(m){
+                  return '<span class="chip" style="cursor:default">'+esc(m.name)
+                       + (m.pinHash ? '' : ' <span class="hint">잠금 없음</span>')
+                       + ' <button class="btn sm" data-act="delmember" data-id="'+m.id+'" '
+                       + 'style="padding:1px 7px;margin-left:4px">삭제</button></span>';
+                }).join("")
+              + '</div>'
+            : '')
+         +  '</div>';
   }
 
   if(!Store.shared()){
@@ -683,6 +786,10 @@ function render(){
               }).join(' &nbsp;·&nbsp; ') + '</div>';
     }
 
+    if(!canEdit(me)){
+      html += '<div class="banner" style="margin:14px 0 0"><b>🔒 잠겨 있습니다.</b> '
+           +  '아래 버튼을 누르면 비밀번호를 물어봅니다.</div>';
+    }
     var inLabel = !sess.length ? "출근" : (sess.length+1)+"차 출근";
     html += '<div class="punch">'
       + '<button class="btn '+(!open?'primary':'')+'" data-act="punch" data-k="in" '+(open?'disabled':'')+'>'+inLabel+'</button>'
@@ -702,7 +809,7 @@ function render(){
 
   /* ---- 주간 진행률 ---- */
   if(meObj){
-    var wm = weekMin(me, mon), goal = S.settings.goalMin;
+    var wm = weekMin(me, mon), carry = carryMin(me, mon), goal = S.settings.goalMin + carry;
     var pct = Math.min(100, wm/goal*100);
     var remain = Math.max(0, goal-wm);
     var leftDays = dates.filter(function(dt){
@@ -711,7 +818,11 @@ function render(){
     html += '<section class="card"><div class="card-hd"><h2>이번 주 누적</h2>'
          +  '<span class="tag '+(wm>=goal?'ok':(remain>0&&leftDays===0?'bad':'mute'))+'">'
          +  (wm>=goal?'목표 달성':(leftDays===0?'미달':Math.round(pct)+'%'))+'</span></div><div class="card-bd">';
-    html += '<div class="big mono">'+hmShort(wm)+'<small> / '+(goal/60)+'시간</small></div>';
+    html += '<div class="big mono">'+hmShort(wm)+'<small> / '+hmShort(goal)+'</small></div>';
+    if(carry > 0){
+      html += '<div class="hint" style="margin:2px 0 8px">기본 '+(S.settings.goalMin/60)+'시간 '
+           +  '<span class="tag warn">지난주 미달 '+hm(carry)+' 이월</span></div>';
+    }
     html += '<div class="meter"><div class="bar"><div class="fill" style="width:'+pct.toFixed(1)+'%"></div></div>'
          +  '<div class="cap"><span>남은 시간 '+hm(remain)+'</span><span>'
          +  (leftDays>0 ? '남은 '+leftDays+'일 · 하루 '+hm(remain/leftDays) : '이번 주 근무일 종료')
@@ -782,9 +893,11 @@ function render(){
       }
       html += '<td class="'+cls+'" data-act="pick" data-id="'+m.id+'" data-d="'+dt+'">'+body+'</td>';
     });
-    var t = weekMin(m.id, mon), g = S.settings.goalMin;
+    var t = weekMin(m.id, mon), cy = carryMin(m.id, mon), g = S.settings.goalMin + cy;
     html += '<td class="total mono">'+hmShort(t)+'</td>'
-         +  '<td><span class="tag '+(t>=g?'ok':(t>=g*0.8?'warn':'bad'))+'">'+Math.round(t/g*100)+'%</span></td></tr>';
+         +  '<td><span class="tag '+(t>=g?'ok':(t>=g*0.8?'warn':'bad'))+'">'+Math.round(t/g*100)+'%</span>'
+         +  (cy>0 ? '<br><span class="tag warn" style="font-size:10px">+'+hmShort(cy)+' 이월</span>' : '')
+         +  '</td></tr>';
   });
   html += '</tbody></table></div></section>';
 
@@ -808,6 +921,26 @@ function render(){
            +  (sr.autoClosed?'<span class="tag warn">자동 마감</span>':'')
            +  '<span style="flex:1"></span>'
            +  '<span class="tag '+(swork!=null?'ok':'mute')+'">근무 '+hmShort(swork!=null?swork:liveMin(sel.id,sel.d))+'</span></div>';
+      if(!canEdit(sel.id)){
+        html += '<div class="banner" style="margin:0"><b>🔒 잠겨 있습니다.</b> '
+             +  esc(sm.name)+' 님의 기록은 본인 비밀번호로 잠금을 풀어야 고칠 수 있습니다. '
+             +  '<button class="btn sm" data-act="unlockfor" data-id="'+sel.id+'" style="margin-left:6px">잠금 해제</button></div>';
+        html += '<div class="sep"></div><div class="rows">'
+             +  (sr.sessions||[]).map(function(s2,i){
+                  return '<div class="row"><span class="k">'+(i+1)+'차 근무</span><span class="mono">'
+                       + (s2["in"]||"--:--")+' ~ '+(s2.out||"진행 중")+'</span></div>';
+                }).join("")
+             +  (sr.meals||[]).map(function(m2,i){
+                  return '<div class="row"><span class="k">식사 '+(i+1)+'</span><span class="mono">'
+                       + (m2.s||"--:--")+' ~ '+(m2.e||"진행 중")+'</span></div>';
+                }).join("")
+             +  (sr.note ? '<div class="row"><span class="k">메모</span><span>'+esc(sr.note)+'</span></div>' : '')
+             +  ((sr.sessions||[]).length ? '' : '<div class="empty">기록이 없습니다.</div>')
+             +  '</div></div></section>';
+        html += '</div></div>' + rulesFoot() + dialogHtml() + '</div>';
+        document.getElementById("app").innerHTML = html;
+        bind(); return;
+      }
       html += '<div class="rows">';
       (sr.sessions||[]).forEach(function(s2, i){
         html += '<div class="row"><span class="k">'+(i+1)+'차 근무</span>'
@@ -855,9 +988,27 @@ function dialogHtml(){
   if(!d) return "";
   return '<div class="veil" data-act="veil"><div class="dialog" role="dialog" aria-modal="true">'
     + '<h3>'+esc(d.title)+'</h3><p>'+esc(d.msg)+'</p>'
+    + (d.pin
+       ? '<div class="addform" style="margin:0 0 14px"><input type="password" id="pinbox" data-act="pininput" '
+         + 'inputmode="numeric" maxlength="4" placeholder="숫자 4자리" autocomplete="off" style="width:120px"></div>'
+         + (d.error ? '<ul class="warnlist" style="margin:0 0 14px"><li>'+esc(d.error)+'</li></ul>' : '')
+       : '')
     + '<div class="acts"><button class="btn sm" data-act="dlg-no">취소</button>'
     + '<button class="btn sm primary" data-act="dlg-yes">'+esc(d.okLabel||"확인")+'</button></div>'
     + '</div></div>';
+}
+
+/** 비밀번호를 묻는 대화상자. onPin(입력값, fail) 이 호출된다. */
+function askPin(name, purpose, onPin){
+  ui.dialog = {
+    title: purpose,
+    msg: (name ? name + " 님의 " : "") + "비밀번호 4자리를 입력해주세요.",
+    okLabel: "확인",
+    pin: true,
+    error: null,
+    onPin: onPin
+  };
+  render();
 }
 
 function rulesFoot(){
@@ -916,6 +1067,12 @@ function bind(){
   var app = document.getElementById("app");
   app.querySelectorAll("[data-act]").forEach(function(el){
     var act = el.getAttribute("data-act");
+    if(act === "pininput"){
+      el.addEventListener("keydown", function(e){
+        if(e.key === "Enter"){ e.preventDefault(); handle("dlg-yes", el); }
+      });
+      return;
+    }
     if(act === "keyinput"){
       el.addEventListener("keydown", function(e){
         if(e.key === "Enter"){ e.preventDefault(); handle("setkey", el); }
@@ -939,6 +1096,8 @@ function bind(){
       e.preventDefault(); handle(act, el);
     });
   });
+  var pb = document.getElementById("pinbox");
+  if(pb) pb.focus();
   if(ui.focusAdd){
     ui.focusAdd = false;
     var nn = document.getElementById("newname");
@@ -950,9 +1109,17 @@ function handle(act, el){
   var me = ui.me, today = todayStr(), mon = ui.weekMon;
 
   if(act === "setme"){
-    ui.me = el.getAttribute("data-id");
-    try { localStorage.setItem("punchcard.me", ui.me); } catch(e){}
-    render(); return;
+    var pick = el.getAttribute("data-id");
+    ui.me = pick;
+    try { localStorage.setItem("punchcard.me", pick); } catch(e){}
+    render();
+    if(!canEdit(pick)) requireUnlock(pick, "잠금 해제", function(){ render(); });
+    return;
+  }
+  if(act === "lock"){ setUnlocked(""); render(); return; }
+  if(act === "unlockfor"){
+    requireUnlock(el.getAttribute("data-id"), "잠금 해제", function(){ render(); });
+    return;
   }
   if(act === "setkey"){
     var kf = document.getElementById("teamkey");
@@ -973,7 +1140,18 @@ function handle(act, el){
   }
   if(act === "veil" || act === "dlg-no"){ ui.dialog = null; render(); return; }
   if(act === "dlg-yes"){
-    var fn = ui.dialog && ui.dialog.ok;
+    var d = ui.dialog;
+    if(d && d.pin){
+      var box = document.getElementById("pinbox");
+      var pin = box ? box.value.trim() : "";
+      if(!/^\d{4}$/.test(pin)){
+        d.error = "숫자 4자리를 입력해주세요.";
+        render(); return;
+      }
+      d.onPin(pin, function(msg){ d.error = msg; render(); });
+      return;
+    }
+    var fn = d && d.ok;
     ui.dialog = null;
     if(fn) fn(); else render();
     return;
@@ -984,25 +1162,37 @@ function handle(act, el){
   }
   if(act === "addmember"){
     var field = document.getElementById("newname");
+    var pinf = document.getElementById("newpin");
     var n = ((field ? field.value : ui.addName) || "").trim();
-    if(!n){ if(field) field.focus(); return; }
-    var id = "m" + Date.now().toString(36) + Math.floor(Math.random()*99).toString(36);
-    S.members.push({id:id, name:n.slice(0,20)});
-    ui.addName = ""; ui.focusAdd = true;
-    if(!ui.me){ ui.me = id; try{ localStorage.setItem("punchcard.me", id); }catch(e){} }
-    render(); save(); return;
+    var p = pinf ? pinf.value.trim() : "";
+    ui.addError = null;
+    if(!n){ ui.addError = "이름을 입력해주세요."; render(); return; }
+    if(!/^\d{4}$/.test(p)){ ui.addError = "비밀번호는 숫자 4자리로 정해주세요."; render(); return; }
+    var salt = randomSalt();
+    hashPin(salt, p).then(function(h){
+      var id = "m" + Date.now().toString(36) + Math.floor(Math.random()*99).toString(36);
+      S.members.push({id:id, name:n.slice(0,20), salt:salt, pinHash:h});
+      ui.addName = ""; ui.focusAdd = true;
+      setUnlocked(id);                       // 방금 만든 사람은 바로 쓸 수 있게
+      if(!ui.me){ ui.me = id; try{ localStorage.setItem("punchcard.me", id); }catch(e){} }
+      render(); save();
+    });
+    return;
   }
   if(act === "delmember"){
     var id2 = el.getAttribute("data-id");
     var mm = S.members.filter(function(x){return x.id===id2;})[0];
     if(!mm) return;
+    requireUnlock(id2, "팀원 삭제", function(){
     askConfirm("팀원 삭제", mm.name + " 님과 그동안의 모든 기록을 지웁니다. 되돌릴 수 없습니다.", "삭제", function(){
       S.members = S.members.filter(function(x){return x.id!==id2;});
       Object.keys(S.days).forEach(function(k){ if(k.indexOf(id2+"|")===0) delete S.days[k]; });
       Object.keys(S.off).forEach(function(k){ if(k.indexOf(id2+"|")===0) delete S.off[k]; });
       if(ui.me===id2) ui.me=null;
       if(ui.sel && ui.sel.id===id2) ui.sel=null;
+      if(unlockedId()===id2) setUnlocked("");
       render(); save();
+    });
     });
     return;
   }
@@ -1020,17 +1210,20 @@ function handle(act, el){
   }
   if(act === "setoff"){
     if(!me) return;
+    if(!canEdit(me)) return requireUnlock(me, "잠금 해제", function(){ handle(act, el); });
     var d3 = el.getAttribute("data-d");
     S.off[key(me,mon)] = {date: d3, at: new Date().toISOString()};
     render(); save(); return;
   }
   if(act === "clearoff"){
     if(!me) return;
+    if(!canEdit(me)) return requireUnlock(me, "잠금 해제", function(){ handle(act, el); });
     delete S.off[key(me,mon)];
     render(); save(); return;
   }
   if(act === "punch"){
     if(!me) return;
+    if(!canEdit(me)) return requireUnlock(me, "잠금 해제", function(){ handle(act, el); });
     rollMidnight();                      // 자정을 넘겼으면 먼저 날짜를 갈라 놓는다
     today = todayStr();
     var k = el.getAttribute("data-k"), t = nowHM();
@@ -1077,6 +1270,7 @@ function handle(act, el){
     render(); save(); return;
   }
   if(act === "sess" && ui.sel){
+    if(!canEdit(ui.sel.id)) return requireUnlock(ui.sel.id, "잠금 해제", function(){ handle(act, el); });
     var rs = ensure(ui.sel.id, ui.sel.d);
     var si = +el.getAttribute("data-i");
     if(rs.sessions[si]) rs.sessions[si][el.getAttribute("data-f")] = el.value || null;
@@ -1084,37 +1278,44 @@ function handle(act, el){
     render(); save(); return;
   }
   if(act === "addsess" && ui.sel){
+    if(!canEdit(ui.sel.id)) return requireUnlock(ui.sel.id, "잠금 해제", function(){ handle(act, el); });
     var ra = ensure(ui.sel.id, ui.sel.d);
     var last = ra.sessions.length ? ra.sessions[ra.sessions.length-1].out : null;
     ra.sessions.push({"in": last || "09:00", out: null});
     render(); save(); return;
   }
   if(act === "delsess" && ui.sel){
+    if(!canEdit(ui.sel.id)) return requireUnlock(ui.sel.id, "잠금 해제", function(){ handle(act, el); });
     var rd = ensure(ui.sel.id, ui.sel.d);
     rd.sessions.splice(+el.getAttribute("data-i"), 1);
     render(); save(); return;
   }
   if(act === "meal" && ui.sel){
+    if(!canEdit(ui.sel.id)) return requireUnlock(ui.sel.id, "잠금 해제", function(){ handle(act, el); });
     var r4 = ensure(ui.sel.id, ui.sel.d);
     var i = +el.getAttribute("data-i");
     if(r4.meals && r4.meals[i]) r4.meals[i][el.getAttribute("data-f")] = el.value || null;
     render(); save(); return;
   }
   if(act === "addmeal" && ui.sel){
+    if(!canEdit(ui.sel.id)) return requireUnlock(ui.sel.id, "잠금 해제", function(){ handle(act, el); });
     var r5 = ensure(ui.sel.id, ui.sel.d);
     r5.meals = r5.meals || []; r5.meals.push({s:"12:00", e:"13:00"});
     render(); save(); return;
   }
   if(act === "delmeal" && ui.sel){
+    if(!canEdit(ui.sel.id)) return requireUnlock(ui.sel.id, "잠금 해제", function(){ handle(act, el); });
     var r6 = ensure(ui.sel.id, ui.sel.d);
     r6.meals.splice(+el.getAttribute("data-i"), 1);
     render(); save(); return;
   }
   if(act === "note" && ui.sel){
+    if(!canEdit(ui.sel.id)) return requireUnlock(ui.sel.id, "잠금 해제", function(){ handle(act, el); });
     ensure(ui.sel.id, ui.sel.d).note = el.value.slice(0,120);
     save(); return;
   }
   if(act === "clearday" && ui.sel){
+    if(!canEdit(ui.sel.id)) return requireUnlock(ui.sel.id, "잠금 해제", function(){ handle(act, el); });
     var tgt = {id: ui.sel.id, d: ui.sel.d};
     askConfirm("기록 삭제", tgt.d + " 의 출퇴근·식사 기록을 모두 지웁니다.", "지우기", function(){
       delete S.days[key(tgt.id, tgt.d)];
