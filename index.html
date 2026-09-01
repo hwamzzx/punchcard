@@ -206,7 +206,7 @@ var CONFIG = {
 var S = {v:1, members:[], days:{}, off:{}, settings:{goalMin:3600, coreStart:"13:00", coreEnd:"18:00"}};
 S.members = S.members || []; S.days = S.days || {}; S.off = S.off || {};
 S.settings = Object.assign({goalMin:3600, coreStart:"13:00", coreEnd:"18:00"}, S.settings||{});
-delete S.settings.sundayOff;   // 일·월은 고정 근무일 — 휴무는 화~토 중 하루뿐
+delete S.settings.sundayOff;   // 일·월·화는 고정 근무일 — 휴무는 수~토 중 하루뿐
 
 var READONLY = false, saving = false;
 var DOW = ["일","월","화","수","목","금","토"];
@@ -287,7 +287,7 @@ function lastOut(r){
 }
 function offDate(mid, mon){ return S.off[key(mid,mon)] ? S.off[key(mid,mon)].date : null; }
 function offNotice(mid, mon){ return S.off[key(mid,mon)] ? S.off[key(mid,mon)].at : null; }
-/** 일·월은 고정 근무일이므로, 휴무는 그 주에 지정한 하루(화~토)뿐이다 */
+/** 일·월·화는 고정 근무일이므로, 휴무는 그 주에 지정한 하루(수~토)뿐이다 */
 function isOff(mid, date){
   var mon = mondayOf(parseYmd(date));
   return offDate(mid,mon)===date ? "지정 휴무" : null;
@@ -720,15 +720,22 @@ function render(){
 
     /* ---- 휴무 지정 ---- */
     var od = offDate(me,mon), ns = noticeStatus(me,mon);
+    // 규칙이 바뀌기 전에 골라둔 일·월·화 휴무가 남아 있을 수 있다
+    var odBad = od && parseYmd(od).getDay() <= 2;
     html += '<section class="card"><div class="card-hd"><h2>이번 주 휴무</h2>'
-         +  (od ? '<span class="tag '+(ns.code==="ok"?'ok':'warn')+'">'+(ns.code==="ok"?'사전 고지 완료':'월요일 이후 고지')+'</span>'
-               : '<span class="tag warn">미지정</span>')
+         +  (odBad ? '<span class="tag bad">고를 수 없는 요일</span>'
+             : od ? '<span class="tag '+(ns.code==="ok"?'ok':'warn')+'">'+(ns.code==="ok"?'사전 고지 완료':'월요일 이후 고지')+'</span>'
+                  : '<span class="tag warn">미지정</span>')
          +  '</div><div class="card-bd">';
-    html += '<div class="hint" style="margin-bottom:10px">일요일·월요일은 고정 근무일입니다. 나머지 화~토 5일 중 하루를 고르고, 월요일 안에 정해야 사전 고지로 인정됩니다.</div>';
+    if(odBad){
+      html += '<ul class="warnlist"><li>'+DOW[parseYmd(od).getDay()]+'요일('+od
+           +  ')로 지정돼 있습니다. 지금 규칙에서는 고를 수 없는 요일이니 수~토 중 하나로 다시 골라주세요.</li></ul>';
+    }
+    html += '<div class="hint" style="margin-bottom:10px">일요일·월요일·화요일은 고정 근무일입니다. 나머지 수~토 4일 중 하루를 고르고, 월요일 안에 정해야 사전 고지로 인정됩니다.</div>';
     html += '<div class="chipbar">';
     dates.forEach(function(dt){
       var wd = parseYmd(dt).getDay();
-      if(wd===0 || wd===1) return;                 // 일·월 제외
+      if(wd <= 2) return;                          // 일·월·화 제외 — 휴무는 수~토 중 하루
       html += '<button class="chip" aria-pressed="'+(od===dt)+'" data-act="setoff" data-d="'+dt+'">'
            +  DOW[wd]+' <span class="mono" style="font-size:11px">'+dt.slice(5).replace("-","/")+'</span></button>';
     });
@@ -869,7 +876,7 @@ function rulesFoot(){
     + '<ol class="rules hint">'
     + '<li>주 '+(s.goalMin/60)+'시간을 채웁니다. (식사 시간 제외)</li>'
     + '<li>코어타임 '+s.coreStart+'~'+s.coreEnd+'은 원칙적으로 필수 — 시스템은 막지 않고 경고만 남깁니다.</li>'
-    + '<li>일요일·월요일은 무조건 근무. 휴무는 나머지 화~토 5일 중 하루이며, 해당 주 월요일 안에 고지해야 합니다.</li>'
+    + '<li>일요일·월요일·화요일은 무조건 근무. 휴무는 나머지 수~토 4일 중 하루이며, 해당 주 월요일 안에 고지해야 합니다.</li>'
     + '<li>점심·저녁 시간은 시작/종료를 따로 찍어 근무시간에서 제외합니다.</li>'
     + '</ol>'
     + '<div class="foot"><span>'+(saving?'저장 중…':(Store.shared()?'변경하면 팀 전체 화면에 반영됩니다 (15초마다 동기화)':'이 브라우저에만 저장 중'))+'</span>'
