@@ -199,6 +199,12 @@ var CONFIG = {
   apiUrl: "https://punchcard.hwamzzx.workers.dev"   // 예: "https://punchcard.내계정.workers.dev"
 };
 
+/* 이 화면의 판 번호. 저장할 때 서버에 함께 보낸다.
+ * 서버가 이보다 높은 minClient 를 요구하면 스스로 새로고침해 최신 코드를 받는다.
+ * 페이지는 열어두면 스스로 갱신되지 않으므로, 이 장치가 없으면
+ * 옛 탭이 며칠이고 옛 코드로 돌면서 팀 데이터를 망가뜨린다. */
+var APP_VERSION = 2;
+
 (function(){
 "use strict";
 
@@ -513,8 +519,18 @@ function forgetTeamKey(){
   try { localStorage.removeItem(LS_TEAMKEY); } catch(e){}
 }
 
+var reloading = false;
+/** 서버가 더 새 화면을 요구하면 스스로 새로고침한다. */
+function reloadForUpdate(){
+  if(reloading) return;
+  reloading = true;
+  try { sessionStorage.setItem("punchcard.updated", "1"); } catch(e){}
+  location.reload();
+}
+
 function api(payload){
   payload.key = teamKey();
+  payload.client = APP_VERSION;
   return fetch(CONFIG.apiUrl, {
     method: "POST",
     headers: {"Content-Type": "text/plain;charset=utf-8"},
@@ -524,6 +540,12 @@ function api(payload){
       var e = new Error("팀 암호가 맞지 않습니다");
       e.badKey = true;
       throw e;
+    }
+    if(res.status === 409){          // 서버가 이 화면을 오래됐다고 판단
+      reloadForUpdate();
+      var e2 = new Error("오래된 화면입니다");
+      e2.stale = true;
+      throw e2;
     }
     if(!res.ok) throw new Error("HTTP " + res.status);
     return res.json();
@@ -540,7 +562,12 @@ var Store = {
         return Promise.resolve(raw ? {version: 0, state: JSON.parse(raw)} : null);
       } catch(e){ return Promise.resolve(null); }
     }
-    return api({op: "load"});
+    return api({op: "load"}).then(function(res){
+      if(res && typeof res.minClient === "number" && res.minClient > APP_VERSION){
+        reloadForUpdate();
+      }
+      return res;
+    });
   },
 
   save: function(state){
@@ -591,6 +618,7 @@ function flushSave(){
   }).catch(function(err){
     inFlight = false; saving = false;
     if(err && err.badKey) return onBadKey();
+    if(err && err.stale) return;                  // 새로고침이 진행 중이다
     flash("저장하지 못했습니다. 인터넷 연결과 저장소 주소를 확인해주세요. (" + (err && err.message) + ")");
   });
 }
@@ -1340,6 +1368,13 @@ function handle(act, el){
 
 /* ===== boot ===== */
 render();                                  // 먼저 그려서 빈 화면을 보이지 않게 한다
+
+try {
+  if(sessionStorage.getItem("punchcard.updated")){
+    sessionStorage.removeItem("punchcard.updated");
+    flash("새 버전으로 갱신했습니다.");
+  }
+} catch(e){}
 
 if(!Store.shared() || teamKey()){
   Store.load().then(function(res){

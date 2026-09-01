@@ -12,6 +12,12 @@
 
 const SLOT = "state";
 
+/* 이 값보다 오래된 화면의 저장은 거절한다.
+ * 예전 코드에는 동시 저장 시 남의 기록을 지우는 결함이 있었다.
+ * 팀원 브라우저에 열려 있는 옛 탭은 스스로 새로고침하지 않으므로,
+ * 서버에서 막지 않으면 계속 데이터를 망가뜨린다. */
+const MIN_CLIENT = 2;
+
 export default {
   async fetch(request, env) {
     const origin = env.ALLOW_ORIGIN || "*";
@@ -46,10 +52,15 @@ export default {
     const current = stored || { version: 0, state: null };
 
     if (req.op === "load") {
-      return json({ version: current.version, state: current.state });
+      // minClient 를 함께 돌려준다. 최신 화면은 이 값을 보고 스스로 새로고침한다.
+      return json({ version: current.version, state: current.state, minClient: MIN_CLIENT });
     }
 
     if (req.op === "save") {
+      // 오래된 화면은 저장시키지 않는다. 새로고침하면 최신 코드를 받는다.
+      if (!(Number(req.client) >= MIN_CLIENT)) {
+        return json({ stale: true, minClient: MIN_CLIENT, error: "오래된 화면입니다. 새로고침해주세요." }, 409);
+      }
       // 내가 받아간 판 번호가 최신이 아니면, 남의 저장을 덮어쓰지 않고 현재 것을 돌려줍니다.
       if (typeof req.version === "number" && req.version !== current.version) {
         return json({ conflict: true, version: current.version, state: current.state });
